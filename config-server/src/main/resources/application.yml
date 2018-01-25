@@ -1,0 +1,16 @@
+# The standard config server port is 8888.
+server:
+  port: 8888
+
+# Turn off authentication on secured actuator endpoints.
+management:
+  security:
+    enabled: false
+
+# The configuration repository.
+spring:
+  cloud:
+    config:
+      server:
+        git:
+          uri: file:///users/jpotte46/workspace/central-config
