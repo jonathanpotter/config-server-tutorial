@@ -87,7 +87,7 @@ $ curl -v 127.0.0.1:8888/app/default/master     # Modified value of info.foo is 
 
 ## Part 2: GitHub Configuration Repo
 
-In Part 1, you used a local file repository to store configuration. Beyond the local workstation environment, you will be using a git repo on the [Ford GitHub](https://github.ford.com) instance. In Part 2, you will create a new repo in GitHub and reconfigure your config server app to use this repo.  
+In Part 1, you used a local file repository to store configuration. Beyond the local workstation environment, you will be using a git repo on the [Ford GitHub](https://github.ford.com) instance. In Part 2, you will create a new repo in GitHub where configuration can be managed and protect the repo with a public/private key pair.  
 
 ### Create Repo on GitHub for Configuration Files
 - On [Ford GitHub](https://github.ford.com), create a new, private repo.
@@ -105,11 +105,9 @@ $ git commit -m "add application.properties"
 $ git push
 ```
 
-### Make Config Server Use GitHub Repo
+### Create public/private key pair for GitHub repo
 
-The configuration information in your GitHub repo must be secure and protected. In order for configure server to access the repo, we will use a public/private key pair.
-
-#### Create public/private key pair for GitHub repo
+The configuration information in your GitHub repo must be secure and protected. In order for configure server to access the repo, we will use a public/private key pair. Passphrase-encrypted private keys are not supported by config server, so do not set a passphrase when creating the key pair.
 
 ```bash
 # Generate key pair with options of type, bits, comment, output_file location
@@ -119,26 +117,139 @@ $ ssh-keygen -t rsa -b 4096 -C "jpotte46/central-config keys" \
 
 The command above creates 2 key files. In my case, the files are placed in `C:\users\jpotte46\.ssh` and named `central-config.pub` and `central-config`. The public key will be added to the GitHub repo as a Deploy Key. The private key will be used by the config server.
 
-#### Add Public Key to GitHub repo
+### Add Public Key to GitHub repo
  
 Now add the new public key as a read-only deploy key to the GitHub configuration repo. In a web browser, go to the GitHub repo > Settings > Deploy Keys > Add deploy key. Then paste the contents of your public key. In my case, my public key is at `C:\users\jpotte46\.ssh\central-config.pub`.
 
-#### Add Private Key to Config Server
-- Update the Config Server's application.yml with the GitHub repo SSH address and private key. An [example](http://cloud.spring.io/spring-cloud-static/Dalston.SR5/single/spring-cloud.html#_git_ssh_configuration_using_properties).
-- Start app, make config changes on GitHub and test the app.
+### Convert Private Key to String
+Before proceeding, we must convert the private key to a string replacing all newline characters with `\n`. The config server PCF service will not accept the original formatting with multiple lines. I have done this before in Notepad++ and using the sed utility before, but your mileage may vary. Let me know if you have a better suggestion. Here is how I do it in Notepad++.
+
+Here is the original `C:\users\jpotte46\.ssh\central-config`
+```
+-----BEGIN RSA PRIVATE KEY-----
+MIIJKQIBAAKCAgEAnMq/adADO5lLCRIg6cSKA8p+LCCFvgV7HjolgHkOTjnWQm/d
+cM0Ou/XQQqAW/O3MN/TzrQoCBmxG+5FF/F1akRtNRF4po3bUOfefmji6c4MRoLxr
+ekCzqoOhIvund7if92fTF51ab450EFDmau5c8J88Vqf70e8b...
+```
+
+
+- Open the private key in Notepad++.
+- Open the Find/Replace dialog and configure it like this.
+```
+Match whole word only: false
+Find what:             \r\n
+Replace with:          \\n
+Search Mode:           Extended
+```
+- Then click Replace All.
+
+
+If it worked, you will be left with a single-line string where newlines have been replaced by `\n` characters. It should look something like below. Save this somewhere secure as this is the private key to your GitHub configuration repo. This key will allow the config server to access the GitHub repo.
+```
+-----BEGIN RSA PRIVATE KEY-----\nMIIJKQIBAAKCAgEAnMq/adADO5lLCRIg6cSKA8p+LCCFvgV7HjolgHkOTjnWQm/d\ncM0Ou/XQQqAW/O3MN/TzrQoCBmxG+5FF/F1akRtNRF4po3bUOfefmji6c4MRoLxr\nekCzqoOhIvund7if92fTF51ab450EFDmau5c8J88Vqf70e8b...
+```
+
+### Add Private Key to Config Server (Optional)
+
+If you built a config server app in Part 1, you can update your config server app to use the new GitHub repo with the new private key. However, if you did not do Part 1, or you just want to jump ahead anyway, you can totally skip this section and go on to Part 3. In Part 3, we'll be creating a config server service instance and we will configure it using this private key that we made into a string in the last step.
+
+If you've decided to continue with this step, you will need to add the details of your GitHub repo to your config server app's application.properties file (or application.yml if you prefer).
+
+`src/main/resources/application.properties`
+```bash
+# Replace with your GitHub configuration repo address and private key.
+# Note that the properties are case sensitive!
+spring.cloud.config.server.git.uri=git@github.ford.com:JPOTTE46/central-config.git
+spring.cloud.config.server.git.ignoreLocalSshSettings=true
+spring.cloud.config.server.git.privateKey=-----BEGIN RSA PRIVATE KEY-----\nMIIJKQIBA...
+```
+Some more [documentation](http://cloud.spring.io/spring-cloud-static/Dalston.SR5/single/spring-cloud.html#_git_ssh_configuration_using_properties) on these properties if you need it.
+
+Now start the config server app, make changes in GitHub, and observe as those changes propagate to the config server.
 ```bash
 $ ./gradlew bootRun
-$ curl -v 127.0.0.1:8080/health                 # Note the GitHub repo address as the config source
-$ curl -v 127.0.0.1:8888/app/default/master
-# Make changes to info.foo value on GitHub.
-$ curl -v 127.0.0.1:8888/app/default/master     # Modified value of info.foo is fetched from GitHub and returned.
+$ curl -v 127.0.0.1:8080/health                 # Note config server is using the GitHub repo
+$ curl -v 127.0.0.1:8888/app/default/master     # The initial value of info.foo is fetched
+
+# Now make changes to info.foo value on GitHub.
+$ cd ~/workspace/central-config
+$ echo "info.foo: far" > application.properties
+$ git add -A .
+$ git commit -m "make a change"
+$ git push
+
+# When config server app receives the request below, it will 
+# git pull from the GitHub repo. The modified value of info.foo
+# will then be displayed.
+$ curl -v 127.0.0.1:8888/app/default/master     
 ```
 
 ## Part 3: Config Server on PCF
-PCF offers config server as a service in the PCF marketplace. This means that you do not have to write or manage your own config server. You do need to have a GitHub repo where your config server service instance will read your configuration.
+PCF offers config server as a service in the PCF marketplace. This means that you do not have to write or manage your own config server. You will still need to have a GitHub repo where your config server service instance will read your configuration.
+
+### Write a Config Client
+In the previous examples, we've just curled the unsecured endpoint of the config server app to watch it return configuration information. But going forward, we need a client app that will do this. We will stand up a quick one.
+
+- Create empty app project from [Spring Initializr](http://start.spring.io/).
+  - A Gradle Project with Java and Spring Boot 1.5.9
+  - Artifact: config-client
+  - Dependencies: Actuator, Config Client, Web
+- Download and unzip the app.
+- Open the app in an IDE (like Eclipse or IntelliJ).
+- You should now have an empty Spring Boot app.
+
+`ConfigClientApplication.java`
+
+```java
+// Add these imports
+import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Value;
+
+@SpringBootApplication
+public class ConfigClientApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(ConfigClientApplication.class, args);
+	}
+}
+
+// Add this endpoint
+@RefreshScope
+@RestController
+class InfoFooRestController {
+
+    @Value("${info.foo: some default}")
+    private String infoFoo;
+
+    @RequestMapping("/infofoo")
+    String getInfoFoo() {
+        return this.infoFoo;
+    }
+}
+```
+
+The config client app will expose an `/infofoo` endpoint that will return the value of the info.foo property. The default value is `some default`. However, if the config client app can reach the config server, this value will be updated with the value at the config server which in turn will be the value in our GitHub configuration repo. In our case, this value is `bar`.
+
+Try running the config client locally with no config server running. Confirm that the `/infofoo` endpoint returns `some default`.
+
+Now, push the app to your PCF space.
+
+```bash
+$ gradlew clean build
+$ cf target -o Your_Org -s Your_Space
+$ cf push config-client123456 --random-route -p build/libs/config-client-0.0.1-SNAPSHOT.jar
+```
+
+<!--
+
+Your app should be running on PCF now with a unique route. Test the /infofoo endpoint again for the default response.
+
+-->
 
 ### Create Config Server PCF Service Instance
-In the previous section, our config server used the properties defined in application.yml. We take this configuration and transform it into a JSON file that will be used to configure our PCF service instance.
+<!-- In order In the previous section, our config server used the properties defined in application.yml. We take this configuration and transform it into a JSON file that will be used to configure our PCF service instance.
 
 ```
 // convert application.yml to config-server.json
@@ -154,3 +265,5 @@ cf push
 
 ## Some Completed Examples
 - Config Server [example](https://github.com/spring-cloud-samples/configserver).
+
+-->
