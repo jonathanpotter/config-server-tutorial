@@ -1,6 +1,11 @@
 # Config Server Tutorial
 
-A tutorial for Spring Cloud Config. In part one, you will set up a Spring Cloud Config server running locally on a workstation. In part two, you will set up a GitHub repo where configuration will be managed and set your config server to use this repo. In part three, you will use the config server PCF service instead of managing your own config server app.
+A tutorial for Spring Cloud Config. In Part 1, you will set up a Spring Cloud Config server running locally on a workstation. In Part 2, you will set up a GitHub repo where configuration will be managed. In Part 3, you will use the config server PCF service instead of managing your own config server app. In Part 4, you will see advanced topics such as managing and upgrading a Config Server PCF service instance.
+
+- [Part 1: Config Server Basics](#Part-1:-Config-Server-Basics)
+- [Part 2: GitHub Configuration Repo](#Part-2:-GitHub-Configuration-Repo)
+- [Part 3: Config Server on PCF](#Part-3:-Config-Server-on-PCF)
+- [Part 4: Advanced Topics](#Part-4:-Advanced-Topics)
 
 ## Suggested Prerequisites
 
@@ -242,14 +247,15 @@ $ cf target -o Your_Org -s Your_Space
 $ cf push config-client123456 --random-route -p build/libs/config-client-0.0.1-SNAPSHOT.jar
 ```
 
-<!--
+<!-- DRAFT TEXT
 
 Your app should be running on PCF now with a unique route. Test the /infofoo endpoint again for the default response.
 
 -->
 
 ### Create Config Server PCF Service Instance
-<!-- In order In the previous section, our config server used the properties defined in application.yml. We take this configuration and transform it into a JSON file that will be used to configure our PCF service instance.
+
+<!-- In Part 1, the config server app we wrote used the properties defined in application.yml. We take this configuration and transform it into a JSON file that will be used to configure our PCF service instance.
 
 ```
 // convert application.yml to config-server.json
@@ -262,8 +268,27 @@ cf push
 // cf bind-service
 // test the app
 ```
-
-## Some Completed Examples
-- Config Server [example](https://github.com/spring-cloud-samples/configserver).
-
 -->
+
+> TODO: Perform cf create-service p-config-server explaining the config.json file creation using the GitHub private key string from Part 2
+
+### Bind Config Client App to Service Instance 
+> TODO: Bind app to service, and restage app explaining that config server instance is secured by PCF’s OAuth2 service, and binding the client app injects the necessary credentials for authentication with config server.
+
+### Refreshing Configuration
+> TODO: Then explain the /refresh endpoint on the client app, make a change in GitHub, show value at client app, then hit the /refresh endpoint and show value at client app.
+
+## Part 4: Advanced Topics
+
+### Refresh Configuration Changes with Spring Cloud Bus
+> TODO: Set up the Spring Cloud Bus for running multiple client app instances. See https://sivalabs.in/2017/08/spring-cloud-tutorials-auto-refresh-config-changes-using-spring-cloud-bus/ and http://www.baeldung.com/spring-cloud-bus.
+
+#### High-Availability Mode for Config Server
+> TODO: Running multiple instances of the service instance for HA. See https://docs.pivotal.io/spring-cloud-services/1-4/common/config-server/managing-service-instances.html.
+
+#### Upgrading Config Server Service Instances
+> TODO: How upgrades affect Config Server and how to upgrade. See https://docs.pivotal.io/spring-cloud-services/1-4/common/config-server/managing-service-instances.html.
+
+## References
+Here are some additional completed examples and references.
+- Config Server [example](https://github.com/spring-cloud-samples/configserver).
