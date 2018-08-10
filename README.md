@@ -1,6 +1,6 @@
 # Config Server Tutorial
 
-A tutorial for Spring Cloud Config. In Part 1, you will set up a Spring Cloud Config server running locally on a workstation. In Part 2, you will set up a GitHub repo where configuration will be managed. In Part 3, you will use the config server PCF service instead of managing your own config server app. In Part 4, you will see advanced topics such as managing and upgrading a Config Server PCF service instance.
+A tutorial for Spring Cloud Config. In Part 1 (optional), you will set up a Spring Cloud Config server running locally on a workstation. In Part 2, you will set up a GitHub repo where configuration will be managed. In Part 3, you will use the config server PCF service instead of managing your own config server app. In Part 4, you will see advanced topics such as managing and upgrading a Config Server PCF service instance.
 
 - [Part 1: Config Server Basics](#Part-1:-Config-Server-Basics)
 - [Part 2: GitHub Configuration Repo](#Part-2:-GitHub-Configuration-Repo)
@@ -12,9 +12,12 @@ A tutorial for Spring Cloud Config. In Part 1, you will set up a Spring Cloud Co
 - Complete the [Spring Guide for Centralized Configuration](https://spring.io/guides/gs/centralized-configuration/)
 - Review the Spring Cloud [documentation](https://cloud.spring.io/spring-cloud-static/spring-cloud.html#_spring_cloud_config)
 
+## Architecture Diagram
+![Config Server Architecture Diagram](https://docs.pivotal.io/spring-cloud-services/1-5/common/config-server/images/config-server-fig1.png)
+
 ## Part 1: Config Server Basics
 
-In Part 1, you will use Spring Initializr to write your own config server app and run it locally on your workstation. Completing this part will give you a deeper understanding of how config server works. However, this part is optional if you are planning to use the Config Server PCF service. You may choose to skip ahead to Part 2 if you'd like.
+In Part 1, you will use Spring Initializr to write your own config server app and run it locally on your workstation. Completing this part will give you a deeper understanding of how config server works. However, this part is optional if you are planning to use the Config Server PCF service. One of the benefits of using the PCF service is that you do not have to build and manage your own config server app. You may choose to skip ahead to Part 2 if you'd like.
 
 ### Create a Local Git Repo
 
@@ -34,7 +37,7 @@ $ git commit -m "add application.properties"
 ### Create Config Server App
 
 - Create empty app project from [Spring Initializr](http://start.spring.io/).
-  - A Gradle Project with Java and Spring Boot 1.5.9
+  - A Gradle Project with Java and Spring Boot 2.0.4
   - Artifact: config-server
   - Dependencies: Actuator, Config Server
 - Download and unzip the app.
@@ -127,7 +130,7 @@ The command above creates 2 key files. In my case, the files are placed in `C:\u
 Now add the new public key as a read-only deploy key to the GitHub configuration repo. In a web browser, go to the GitHub repo > Settings > Deploy Keys > Add deploy key. Then paste the contents of your public key. In my case, my public key is at `C:\users\jpotte46\.ssh\central-config.pub`.
 
 ### Convert Private Key to String
-Before proceeding, we must convert the private key to a string replacing all newline characters with `\n`. The config server PCF service will not accept the original formatting with multiple lines. I have done this before in Notepad++ and using the sed utility before, but your mileage may vary. Let me know if you have a better suggestion. Here is how I do it in Notepad++.
+Before proceeding, we must convert the private key to a string replacing all newline characters with `\n`. The config server PCF service will not accept the original formatting with multiple lines. I have done this before in Notepad++ and using the sed utility before, but your mileage may vary. Our team has a [PCF Dev Guide](https://github.ford.com/PCFDev-Reference/pcfdev-sample-config-repo) with a smooth bash script to do this with sed. Here is how I do it in Notepad++.
 
 Here is the original `C:\users\jpotte46\.ssh\central-config`
 ```
@@ -193,7 +196,7 @@ $ curl -v 127.0.0.1:8888/app/default/master
 PCF offers config server as a service in the PCF marketplace. This means that you do not have to write or manage your own config server. You will still need to have a GitHub repo where your config server service instance will read your configuration.
 
 ### Write a Config Client
-In the previous examples, we've just curled the unsecured endpoint of the config server app to watch it return configuration information. But going forward, we need a client app that will do this. We will stand up a quick one.
+In the previous examples, we've just curled the unsecured endpoint of the config server app to watch it return configuration information. But going forward, we need a client app that will retrieve configuration information from a secured config server instance. We will stand up a quick config client app.
 
 - Create empty app project from [Spring Initializr](http://start.spring.io/).
   - A Gradle Project with Java and Spring Boot 1.5.9
@@ -203,7 +206,9 @@ In the previous examples, we've just curled the unsecured endpoint of the config
 - Open the app in an IDE (like Eclipse or IntelliJ).
 - You should now have an empty Spring Boot app.
 
-`ConfigClientApplication.java`
+Modify as below to set up an `/infofoo` endpoint that returns the value of `info.foo`.
+
+`src/main/java/.../ConfigClientApplication.java`
 
 ```java
 // Add these imports
@@ -235,60 +240,148 @@ class InfoFooRestController {
 }
 ```
 
-The config client app will expose an `/infofoo` endpoint that will return the value of the info.foo property. The default value is `some default`. However, if the config client app can reach the config server, this value will be updated with the value at the config server which in turn will be the value in our GitHub configuration repo. In our case, this value is `bar`.
+Modify as below to set up basic authentication credentials on the client config app endpoints.
+
+`src/main/resources/.../application.properties`
+
+```
+spring.security.user.name=admin
+spring.security.user.password=thispasswordshouldbechangedbutyouprobablywont
+```
+
+Modify as below to include the necessary Pivotal dependencies (`io.pivotal.spring.cloud`). Full details are given in [Pivotal Docs](https://docs.pivotal.io/spring-cloud-services/1-5/common/config-server/writing-client-applications.html).
+
+`build.gradle`
+
+```groovy
+dependencies {
+	compile('org.springframework.boot:spring-boot-starter-actuator')
+	compile('org.springframework.boot:spring-boot-starter-web')
+	compile('org.springframework.cloud:spring-cloud-starter-config')
+	compile('io.pivotal.spring.cloud:spring-cloud-services-starter-config-client')
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+        mavenBom "io.pivotal.spring.cloud:spring-cloud-services-dependencies:2.0.1.RELEASE"
+    }
+}
+```
+
+
+The config client app will expose an `/infofoo` endpoint that will return the value of the info.foo property. The default value is `some default`. However, if the config client app can reach the config server, this value will be updated with the value at the config server which in turn will be the value set in our GitHub configuration repo. In our case, this value is `bar` in the GitHub config repo.
 
 Try running the config client locally with no config server running. Confirm that the `/infofoo` endpoint returns `some default`.
+```bash
+$ curl -s -u admin:thispasswordshouldbechangedbutyouprobablywont localhost:8080/infofoo
+some default
+```
 
 Now, push the app to your PCF space.
 
 ```bash
 $ gradlew clean build
 $ cf target -o Your_Org -s Your_Space
-$ cf push config-client123456 --random-route -p build/libs/config-client-0.0.1-SNAPSHOT.jar
+$ cf push config-client --random-route -p build/libs/config-client-0.0.1-SNAPSHOT.jar
 ```
-
-<!-- DRAFT TEXT
 
 Your app should be running on PCF now with a unique route. Test the /infofoo endpoint again for the default response.
 
--->
+```bash
+$ curl -s -u admin:thispasswordshouldbechangedbutyouprobablywont YOUR_APP_URL/infofoo
+some default
+```
 
 ### Create Config Server PCF Service Instance
 
-<!-- In Part 1, the config server app we wrote used the properties defined in application.yml. We take this configuration and transform it into a JSON file that will be used to configure our PCF service instance.
+Now create a config server instance from the PCF marketplace. This instance will need to be configured to use the private key in the string format that was created in Part 2. The create-service command needs this configuration in JSON format. The command below shows how to pass the configuration as JSON when creating a service instance. Replace the values below with your private key and the GitHub configuration repo you created in Part 2.
+
+If you completed Part 1 of creating your own config server app, we defined some properties in an application.yml file. used the properties defined in application.yml. We take this configuration and transform it into a JSON file that will be used to configure our PCF service instance.
 
 ```
-// convert application.yml to config-server.json
-cf marketplace
-cf create-service p-config-server standard my-config-server -c config-server.json
+$ cf marketplace
+$ PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIJK...oncM=\n-----END RSA PRIVATE KEY-----"
+$ cf create-service p-config-server standard my-sample-config-server -c "$(cat <<EOF
+{
+   "git": {
+       "uri": "git@github.ford.com:JPOTTE46/central-config.git",
+       "privateKey": "$PRIVATE_KEY"
+   }
+}
+EOF
+)"
 ```
-Now push the config-client app to PCF and bind the app to the config-server instance.
-```
-cf push
-// cf bind-service
-// test the app
-```
--->
 
-> TODO: Perform cf create-service p-config-server explaining the config.json file creation using the GitHub private key string from Part 2
+Check for errors from command line and in App Manager dashboard. Run the command line below and get the Dashboard URL for the config service instance. Open the dashboard in a web browser.
+
+```bash
+$ cf service my-sample-config-server
+
+Service instance: my-sample-config-server
+Service: p-config-server
+Bound apps:
+Tags:
+Plan: standard
+Description: Config Server for Spring Cloud Applications
+Documentation url: http://docs.pivotal.io/spring-cloud-services/
+Dashboard: https://spring-cloud-broker.apps-pcf02v2i.cf.ford.com/dashboard/p-config-server/e13e3852-575b-4b89-a86a-493c78d38142
+
+Last Operation
+Status: create succeeded
+Message:
+Started: 2018-08-09T14:51:43Z
+Updated: 2018-08-09T14:51:44Z
+```
+
+If you see a message banner in green that "Config server is online", then the config service instance has been created, and successfully connected to the GitHub configuration repo using the private key your created in Part 2. You can move on to the next section.
+
+Often teams will see a red error message. If so, go back through Part 2 and double-check each step. Mistake usually occurs during these steps:
+- Reformatting the private key into a string replacing the carriage returns and line feeds with a `\n` characters.
+- Specifying the wrong GitHub uri. Ford's GitHub installation only supports SSH (not HTTPS).
+- Perhaps your shell handles quotes during the `cf create-service` step. You may need some escape characters in the JSON during this step.
 
 ### Bind Config Client App to Service Instance 
-> TODO: Bind app to service, and restage app explaining that config server instance is secured by PCF’s OAuth2 service, and binding the client app injects the necessary credentials for authentication with config server.
+Bind your client-config app to the config service instance. The service instance is secured by PCF’s OAuth2 service. Binding the client-config app to the service instance injects the necessary credentials for the app to authenticate with the config server.
 
-### Refreshing Configuration
-> TODO: Then explain the /refresh endpoint on the client app, make a change in GitHub, show value at client app, then hit the /refresh endpoint and show value at client app.
+```bash
+$ cf bind-service config-client my-sample-config-server
+```
+
+If your config-client app was running during the `bind-service` command, it will probably still return the default value at the `infofoo` endpoint. Try it and see. This is because by default, the configuration values are read on the client’s startup, and not again. You can observe this by restarting your app.
+
+```
+$ curl -s -u admin:thispasswordshouldbechangedbutyouprobablywont YOUR_APP_URL/infofoo
+some default
+$ cf restart config-client
+$ curl -s -u admin:thispasswordshouldbechangedbutyouprobablywont YOUR_APP_URL/infofoo
+bar
+```
+
+You have built an app that pulls its configuration from the config service instance at start up.
 
 ## Part 4: Advanced Topics
 
+These are bonus exercises you can do on your own if you'd like to learn more about the advanced features of config server.
+
+### Refreshing Configuration
+Client apps of the config server, **DO NOT** regularly poll the config server. However, a refresh of configuration can be triggered by enabling a `/refresh` endpoint. The [Spring Guide on Centralized Configuration](https://spring.io/guides/gs/centralized-configuration/#_reading_configuration_from_the_config_server_using_the_config_client) shows how to do this by annotating an app controller with the Spring Cloud Config `@RefreshScope` and trigging a refresh event.
+
 ### Refresh Configuration Changes with Spring Cloud Bus
-> TODO: Set up the Spring Cloud Bus for running multiple client app instances. See https://sivalabs.in/2017/08/spring-cloud-tutorials-auto-refresh-config-changes-using-spring-cloud-bus/ and http://www.baeldung.com/spring-cloud-bus.
+In the real world, apps run multiple instances. If you want to refresh your app's configuration, you'll have to refresh each app instance individually. Additionally, if you want to refresh multiple microservice apps, you will have to refresh each instance of each app. This is not practical at scale. Spring Cloud Bus uses a message broker so configuration changes can be triggered across multiple apps.
 
-#### High-Availability Mode for Config Server
-> TODO: Running multiple instances of the service instance for HA. See https://docs.pivotal.io/spring-cloud-services/1-4/common/config-server/managing-service-instances.html.
+Feel free to work through these tutorials.
+- https://sivalabs.in/2017/08/spring-cloud-tutorials-auto-refresh-config-changes-using-spring-cloud-bus/
+- http://www.baeldung.com/spring-cloud-bus.
 
-#### Upgrading Config Server Service Instances
-> TODO: How upgrades affect Config Server and how to upgrade. See https://docs.pivotal.io/spring-cloud-services/1-4/common/config-server/managing-service-instances.html.
+### High-Availability Mode for Config Server
+By default, creating a config server from the PCF marketplace results in a single running instance of config server. However, you may want to run multiple instances of the service instance for HA. See https://docs.pivotal.io/spring-cloud-services/1-4/common/config-server/managing-service-instances.html.
+
+### Upgrading Config Server Service Instances
+Dev teams need to pay attend to client dependencies between their app and config server. When the platform support team upgrades config server in the PCF marketplace, dev teams need to update the dependencies in their app and perform upgrade steps for their config server instances. The [Pivotal Docs](https://docs.pivotal.io/spring-cloud-services/1-4/common/config-server/managing-service-instances.html) show how to update config server instances.
 
 ## References
 Here are some additional completed examples and references.
-- Config Server [example](https://github.com/spring-cloud-samples/configserver).
+- [Setting Up GitHub Config Repo and PCF Config Server Instance](https://github.ford.com/PCFDev-Reference/pcfdev-sample-config-repo)
+- [Config Server Example](https://github.com/spring-cloud-samples/configserver)
