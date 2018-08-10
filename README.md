@@ -2,7 +2,7 @@
 
 A tutorial for Spring Cloud Config. In Part 1 (optional), you will set up a Spring Cloud Config Server running locally on a workstation. In Part 2, you will set up a GitHub repo where your configuration will be managed. In Part 3, you will use the PCF marketplace to create a PCF service instance of a Config Server - I'll call this a PCF Config Server Instance. (If you did Part 1, the PCF Config Server Instance replaces the Config Server app that you built in Part 1 so you don't have to write and manage your own Config Server app. Let PCF do it for you.) In Part 4, you will write a client app that retrieves configuration from your PCF Config Server Instance. In Part 5, you will see advanced topics such as managing and upgrading a Config Server PCF service instance.
 
-- [Part 1: Config Server Basics](#Part-1:-Config-Server-Basics)
+- [Part 1: Config Server Basics](#part-1-config-server-basics)
 - [Part 2: GitHub Configuration Repo](#Part-2:-GitHub-Configuration-Repo)
 - [Part 3: Config Server on PCF](#Part-3:-Config-Server-on-PCF)
 - [Part 4: Writing a Config Client App](#Part-4:-Writing-a-Config-Client-App)
