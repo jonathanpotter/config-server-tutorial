@@ -1,11 +1,12 @@
 # Config Server Tutorial
 
-A tutorial for Spring Cloud Config. In Part 1 (optional), you will set up a Spring Cloud Config server running locally on a workstation. In Part 2, you will set up a GitHub repo where configuration will be managed. In Part 3, you will use the config server PCF service instead of managing your own config server app. In Part 4, you will see advanced topics such as managing and upgrading a Config Server PCF service instance.
+A tutorial for Spring Cloud Config. In Part 1 (optional), you will set up a Spring Cloud Config Server running locally on a workstation. In Part 2, you will set up a GitHub repo where your configuration will be managed. In Part 3, you will use the PCF marketplace to create a PCF service instance of a Config Server - I'll call this a PCF Config Server Instance. (If you did Part 1, the PCF Config Server Instance replaces the Config Server app that you built in Part 1 so you don't have to write and manage your own Config Server app. Let PCF do it for you.) In Part 4, you will write a client app that retrieves configuration from your PCF Config Server Instance. In Part 5, you will see advanced topics such as managing and upgrading a Config Server PCF service instance.
 
 - [Part 1: Config Server Basics](#Part-1:-Config-Server-Basics)
 - [Part 2: GitHub Configuration Repo](#Part-2:-GitHub-Configuration-Repo)
 - [Part 3: Config Server on PCF](#Part-3:-Config-Server-on-PCF)
-- [Part 4: Advanced Topics](#Part-4:-Advanced-Topics)
+- [Part 4: Writing a Config Client App](#Part-4:-Writing-a-Config-Client-App)
+- [Part 5: Advanced Topics](#Part-5:-Advanced-Topics)
 
 ## Suggested Prerequisites
 
@@ -26,8 +27,8 @@ Config server requires a git repository where it can read configuration informat
 ```bash
 # Note: I'm using Git Bash for Windows
 $ cd ~/workspace
-$ mkdir central-config
-$ cd central-config
+$ mkdir config-repo
+$ cd config-repo
 $ git init
 $ echo "info.foo: bar" > application.properties
 $ git add -A .
@@ -65,7 +66,7 @@ Now, turn the Spring Boot app into a config server and configure it to use the l
 server.port=8888
 
 # My local configuration repository.
-spring.cloud.config.server.git.uri=file:///users/jpotte46/workspace/central-config
+spring.cloud.config.server.git.uri=file:///users/jpotte46/workspace/config-repo
 
 # Don't do this in production! But for now, turn off authentication.
 management.security.enabled=false
@@ -88,7 +89,7 @@ The client apps using config server will be hitting endpoints like `/app/default
 ```bash
 $ ./gradlew bootRun
 $ curl -v 127.0.0.1:8888/app/default/master     # Original value of info.foo is bar.
-$ cd ~/workspace/central-config
+$ cd ~/workspace/config-repo
 $ echo "info.foo: car" > application.properties # Update the file in the local repo.
 $ curl -v 127.0.0.1:8888/app/default/master     # Modified value of info.foo is fetched from repo and returned.
 ```
@@ -105,8 +106,8 @@ In Part 1, you used a local file repository to store configuration. Beyond the l
 ```bash
 # Note: Using Git Bash for Windows
 $ cd ~/workspace
-$ git clone git@github.ford.com:JPOTTE46/central-config.git
-$ cd ./central-config
+$ git clone git@github.ford.com:JPOTTE46/config-repo.git
+$ cd ./config-repo
 $ echo "info.foo: bar" > application.properties
 $ git add -A .
 $ git commit -m "add application.properties"
@@ -119,27 +120,30 @@ The configuration information in your GitHub repo must be secure and protected. 
 
 ```bash
 # Generate key pair with options of type, bits, comment, output_file location
-$ ssh-keygen -t rsa -b 4096 -C "jpotte46/central-config keys" \
-  -f /c/users/jpotte46/.ssh/central-config
+$ ssh-keygen -t rsa -b 4096 -C "jpotte46/config-repo keys" \
+  -f /c/users/jpotte46/.ssh/config-repo
 ```
 
-The command above creates 2 key files. In my case, the files are placed in `C:\users\jpotte46\.ssh` and named `central-config.pub` and `central-config`. The public key will be added to the GitHub repo as a Deploy Key. The private key will be used by the config server.
+The command above creates 2 key files. In my case, the files are placed in `C:\users\jpotte46\.ssh` and named `config-repo.pub` and `config-repo`. The public key will be added to the GitHub repo as a Deploy Key. The private key will be used by the config server.
 
 ### Add Public Key to GitHub repo
  
-Now add the new public key as a read-only deploy key to the GitHub configuration repo. In a web browser, go to the GitHub repo > Settings > Deploy Keys > Add deploy key. Then paste the contents of your public key. In my case, my public key is at `C:\users\jpotte46\.ssh\central-config.pub`.
+Now add the new public key as a read-only deploy key to the GitHub configuration repo. In a web browser, go to the GitHub repo > Settings > Deploy Keys > Add deploy key. Then paste the contents of your public key. In my case, my public key is at `C:\users\jpotte46\.ssh\config-repo.pub`.
 
 ### Convert Private Key to String
-Before proceeding, we must convert the private key to a string replacing all newline characters with `\n`. The config server PCF service will not accept the original formatting with multiple lines. I have done this before in Notepad++ and using the sed utility before, but your mileage may vary. Our team has a [PCF Dev Guide](https://github.ford.com/PCFDev-Reference/pcfdev-sample-config-repo) with a smooth bash script to do this with sed. Here is how I do it in Notepad++.
+Config Server will not accept the original formatting of the private key with multiple lines. Before proceeding, we must convert the private key to a string replacing all newline characters with `\n`.
 
-Here is the original `C:\users\jpotte46\.ssh\central-config`
+I have done this before in Notepad++ or using the sed utility, but your mileage may vary. Also, our team has a [PCF Dev Guide](https://github.ford.com/PCFDev-Reference/pcfdev-sample-config-repo) with a smooth bash script to do this with sed. Here is how I do it in Notepad++.
+
+Here is how the original file looks.
+`C:\users\jpotte46\.ssh\config-repo`
+
 ```
 -----BEGIN RSA PRIVATE KEY-----
 MIIJKQIBAAKCAgEAnMq/adADO5lLCRIg6cSKA8p+LCCFvgV7HjolgHkOTjnWQm/d
 cM0Ou/XQQqAW/O3MN/TzrQoCBmxG+5FF/F1akRtNRF4po3bUOfefmji6c4MRoLxr
 ekCzqoOhIvund7if92fTF51ab450EFDmau5c8J88Vqf70e8b...
 ```
-
 
 - Open the private key in Notepad++.
 - Open the Find/Replace dialog and configure it like this.
@@ -150,16 +154,18 @@ Replace with:          \\n
 Search Mode:           Extended
 ```
 - Then click Replace All.
+- Save it somewhere secure.
 
-
-If it worked, you will be left with a single-line string where newlines have been replaced by `\n` characters. It should look something like below. Save this somewhere secure as this is the private key to your GitHub configuration repo. This key will allow the config server to access the GitHub repo.
+If it worked, you will be left with a single-line string where newlines have been replaced by `\n` characters. It should look something like below. Save this somewhere secure as this is the private key to your GitHub configuration repo. This key will be used by the config server to access the GitHub repo.
+`C:\users\jpotte46\.ssh\config-repo-string`
 ```
 -----BEGIN RSA PRIVATE KEY-----\nMIIJKQIBAAKCAgEAnMq/adADO5lLCRIg6cSKA8p+LCCFvgV7HjolgHkOTjnWQm/d\ncM0Ou/XQQqAW/O3MN/TzrQoCBmxG+5FF/F1akRtNRF4po3bUOfefmji6c4MRoLxr\nekCzqoOhIvund7if92fTF51ab450EFDmau5c8J88Vqf70e8b...
 ```
 
+<!---
 ### Add Private Key to Config Server (Optional)
 
-If you built a config server app in Part 1, you can update your config server app to use the new GitHub repo with the new private key. However, if you did not do Part 1, or you just want to jump ahead anyway, you can totally skip this section and go on to Part 3. In Part 3, we'll be creating a config server service instance and we will configure it using this private key that we made into a string in the last step.
+If you built a config server app in Part 1, you can update your config server app to use the new GitHub repo with the new private key. However, if you did not do Part 1, or you just want to jump ahead anyway, you can totally skip this section and go on to Part 3. In Part 3, we'll be creating a PCF Config Server Instance and we will configure it using this private key that we made into a string in the last step.
 
 If you've decided to continue with this step, you will need to add the details of your GitHub repo to your config server app's application.properties file (or application.yml if you prefer).
 
@@ -167,7 +173,7 @@ If you've decided to continue with this step, you will need to add the details o
 ```bash
 # Replace with your GitHub configuration repo address and private key.
 # Note that the properties are case sensitive!
-spring.cloud.config.server.git.uri=git@github.ford.com:JPOTTE46/central-config.git
+spring.cloud.config.server.git.uri=git@github.ford.com:JPOTTE46/config-repo.git
 spring.cloud.config.server.git.ignoreLocalSshSettings=true
 spring.cloud.config.server.git.privateKey=-----BEGIN RSA PRIVATE KEY-----\nMIIJKQIBA...
 ```
@@ -180,7 +186,7 @@ $ curl -v 127.0.0.1:8080/health                 # Note config server is using th
 $ curl -v 127.0.0.1:8888/app/default/master     # The initial value of info.foo is fetched
 
 # Now make changes to info.foo value on GitHub.
-$ cd ~/workspace/central-config
+$ cd ~/workspace/config-repo
 $ echo "info.foo: far" > application.properties
 $ git add -A .
 $ git commit -m "make a change"
@@ -191,15 +197,65 @@ $ git push
 # will then be displayed.
 $ curl -v 127.0.0.1:8888/app/default/master     
 ```
-
+--->
 ## Part 3: Config Server on PCF
-PCF offers config server as a service in the PCF marketplace. This means that you do not have to write or manage your own config server. You will still need to have a GitHub repo where your config server service instance will read your configuration.
+PCF offers config server as a service in the PCF marketplace. This means that you do not have to write or manage your own Config Server as an app. Instead you will create a Config Server as a service instance from the PCF marketplace. Your PCF Config Server Instance will retrieve configuration from the GitHub config repo you created in Part 2.
+
+### Create Config Server PCF Service Instance
+
+Now create a config server instance from the PCF marketplace. This instance will need to be configured to use the private key in the string format that was created in Part 2. The create-service command needs this configuration in JSON format. The command below shows how to pass the configuration as JSON when creating a service instance. Replace the values below with your private key and the GitHub configuration repo you created in Part 2.
+
+If you completed Part 1 of creating your own config server app, we defined some properties in an application.yml file. used the properties defined in application.yml. We take this configuration and transform it into a JSON file that will be used to configure our PCF service instance.
+
+```
+$ cf marketplace
+$ PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIJK...oncM=\n-----END RSA PRIVATE KEY-----"
+$ cf create-service p-config-server standard my-sample-config-server -c "$(cat <<EOF
+{
+   "git": {
+       "uri": "git@github.ford.com:JPOTTE46/config-repo.git",
+       "privateKey": "$PRIVATE_KEY"
+   }
+}
+EOF
+)"
+```
+
+Check for errors from command line and in App Manager dashboard. Run the command below and get the Dashboard URL for the config service instance. Open the dashboard in a web browser.
+
+```bash
+$ cf service my-sample-config-server
+
+Service instance: my-sample-config-server
+Service: p-config-server
+Bound apps:
+Tags:
+Plan: standard
+Description: Config Server for Spring Cloud Applications
+Documentation url: http://docs.pivotal.io/spring-cloud-services/
+Dashboard: https://spring-cloud-broker.apps-pcf02v2i.cf.ford.com/dashboard/p-config-server/e13e3852-575b-4b89-a86a-493c78d38142
+
+Last Operation
+Status: create succeeded
+Message:
+Started: 2018-08-09T14:51:43Z
+Updated: 2018-08-09T14:51:44Z
+```
+
+If you see a message banner in green that "Config server is online", then the config service instance has been created, and successfully connected to the GitHub configuration repo using the private key your created in Part 2. You can move on to the next section.
+
+Often teams will see a red error message. If so, go back through Part 2 and double-check each step. Mistake usually occurs during these steps:
+- Reformatting the private key into a string replacing the carriage returns and line feeds with a `\n` characters.
+- Specifying the wrong GitHub uri. Ford's GitHub installation only supports SSH (not HTTPS).
+- Perhaps your shell handles quotes during the `cf create-service` step. You may need some escape characters in the JSON during this step.
+
+## Part 4: Writing a Config Client App
 
 ### Write a Config Client
 In the previous examples, we've just curled the unsecured endpoint of the config server app to watch it return configuration information. But going forward, we need a client app that will retrieve configuration information from a secured config server instance. We will stand up a quick config client app.
 
 - Create empty app project from [Spring Initializr](http://start.spring.io/).
-  - A Gradle Project with Java and Spring Boot 1.5.9
+  - A Gradle Project with Java and Spring Boot 2.0.4
   - Artifact: config-client
   - Dependencies: Actuator, Config Client, Web
 - Download and unzip the app.
@@ -294,62 +350,21 @@ $ curl -s -u admin:thispasswordshouldbechangedbutyouprobablywont YOUR_APP_URL/in
 some default
 ```
 
-### Create Config Server PCF Service Instance
+Leave your app running in PCF and go on to the next section.
 
-Now create a config server instance from the PCF marketplace. This instance will need to be configured to use the private key in the string format that was created in Part 2. The create-service command needs this configuration in JSON format. The command below shows how to pass the configuration as JSON when creating a service instance. Replace the values below with your private key and the GitHub configuration repo you created in Part 2.
+### Bind Config Client App to Service Instance
 
-If you completed Part 1 of creating your own config server app, we defined some properties in an application.yml file. used the properties defined in application.yml. We take this configuration and transform it into a JSON file that will be used to configure our PCF service instance.
+To recap, you have created a GitHub configuration repo, a PCF Config Server Instance that successfully connected to the config repo, and a client app that can read configuration from a PCF Config Server Instance after we set up the client app to do so. Now we need to connect the client app to the PCF Config Server Instance. This is done through PCF service binding.
 
-```
-$ cf marketplace
-$ PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIJK...oncM=\n-----END RSA PRIVATE KEY-----"
-$ cf create-service p-config-server standard my-sample-config-server -c "$(cat <<EOF
-{
-   "git": {
-       "uri": "git@github.ford.com:JPOTTE46/central-config.git",
-       "privateKey": "$PRIVATE_KEY"
-   }
-}
-EOF
-)"
-```
-
-Check for errors from command line and in App Manager dashboard. Run the command line below and get the Dashboard URL for the config service instance. Open the dashboard in a web browser.
-
-```bash
-$ cf service my-sample-config-server
-
-Service instance: my-sample-config-server
-Service: p-config-server
-Bound apps:
-Tags:
-Plan: standard
-Description: Config Server for Spring Cloud Applications
-Documentation url: http://docs.pivotal.io/spring-cloud-services/
-Dashboard: https://spring-cloud-broker.apps-pcf02v2i.cf.ford.com/dashboard/p-config-server/e13e3852-575b-4b89-a86a-493c78d38142
-
-Last Operation
-Status: create succeeded
-Message:
-Started: 2018-08-09T14:51:43Z
-Updated: 2018-08-09T14:51:44Z
-```
-
-If you see a message banner in green that "Config server is online", then the config service instance has been created, and successfully connected to the GitHub configuration repo using the private key your created in Part 2. You can move on to the next section.
-
-Often teams will see a red error message. If so, go back through Part 2 and double-check each step. Mistake usually occurs during these steps:
-- Reformatting the private key into a string replacing the carriage returns and line feeds with a `\n` characters.
-- Specifying the wrong GitHub uri. Ford's GitHub installation only supports SSH (not HTTPS).
-- Perhaps your shell handles quotes during the `cf create-service` step. You may need some escape characters in the JSON during this step.
-
-### Bind Config Client App to Service Instance 
-Bind your client-config app to the config service instance. The service instance is secured by PCF’s OAuth2 service. Binding the client-config app to the service instance injects the necessary credentials for the app to authenticate with the config server.
+PCF service instances are secured by PCF’s OAuth2 service. Binding the client-config app to the PCF Config Server Instance injects the necessary credentials for the app to authenticate with the PCF Config Server Instance.
 
 ```bash
 $ cf bind-service config-client my-sample-config-server
 ```
 
-If your config-client app was running during the `bind-service` command, it will probably still return the default value at the `infofoo` endpoint. Try it and see. This is because by default, the configuration values are read on the client’s startup, and not again. You can observe this by restarting your app.
+If your config-client app was already running during the `bind-service` command, the app should still return the default value at the `infofoo` endpoint. Try it and see.
+
+This is because by default, the configuration values are only read during the client app’s startup. You can observe this by restarting your app and seeing that it retrieves the updated value of `info.foo` as set in the config repo.
 
 ```
 $ curl -s -u admin:thispasswordshouldbechangedbutyouprobablywont YOUR_APP_URL/infofoo
@@ -359,9 +374,9 @@ $ curl -s -u admin:thispasswordshouldbechangedbutyouprobablywont YOUR_APP_URL/in
 bar
 ```
 
-You have built an app that pulls its configuration from the config service instance at start up.
+Success! You have built an app that pulls its configuration from the PCF Config Server Instance during app start up. Change the value of `info.foo` in GitHub and restart your app to see the changes take effect.
 
-## Part 4: Advanced Topics
+## Part 5: Advanced Topics
 
 These are bonus exercises you can do on your own if you'd like to learn more about the advanced features of config server.
 
@@ -385,3 +400,10 @@ Dev teams need to pay attend to client dependencies between their app and config
 Here are some additional completed examples and references.
 - [Setting Up GitHub Config Repo and PCF Config Server Instance](https://github.ford.com/PCFDev-Reference/pcfdev-sample-config-repo)
 - [Config Server Example](https://github.com/spring-cloud-samples/configserver)
+
+A list of things to clean up after running this tutorial.
+- `~/workspace/config-client`
+- `~/workspace/config-repo`
+- `~/.ssh/config-repo*`
+- GitHub Repo `config-repo`
+- Delete apps and service instances in PCF environment
