@@ -13,7 +13,7 @@ A tutorial for Spring Cloud Config. In Part 1 (optional), you will set up a Spri
 - Complete the [Spring Guide for Centralized Configuration](https://spring.io/guides/gs/centralized-configuration/)
 - Review the Spring Cloud [documentation](https://cloud.spring.io/spring-cloud-static/spring-cloud.html#_spring_cloud_config)
 
-`Config Server Architecture Diagram`
+## Config Server Architecture Diagram
 ![Config Server Architecture Diagram](https://docs.pivotal.io/spring-cloud-services/1-5/common/config-server/images/config-server-fig1.png)
 
 ## Part 1: Config Server Basics
