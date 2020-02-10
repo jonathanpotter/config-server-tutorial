@@ -96,17 +96,17 @@ $ curl -v 127.0.0.1:8888/app/default/master     # Modified value of info.foo is 
 
 ## Part 2: GitHub Configuration Repo
 
-In Part 1, you used a local file repository to store configuration. Beyond the local workstation environment, you will be using a git repo on the [Ford GitHub](https://github.ford.com) instance. In Part 2, you will create a new repo in GitHub where configuration can be managed and protect the repo with a public/private key pair.  
+In Part 1, you used a local file repository to store configuration. Beyond the local workstation environment, you will be using a git repo on [GitHub](https://github.com). In Part 2, you will create a new repo in GitHub where configuration can be managed and protect the repo with a public/private key pair.  
 
 ### Create Repo on GitHub for Configuration Files
-- On [Ford GitHub](https://github.ford.com), create a new, private repo.
+- On [GitHub](https://github.com), create a new, private repo.
 - Clone the new repo locally.
 - Create an example configuration file and push to GitHub.
 
 ```bash
 # Note: Using Git Bash for Windows
 $ cd ~/workspace
-$ git clone git@github.ford.com:JPOTTE46/config-repo.git
+$ git clone git@github.com:jonathanpotter/config-repo.git
 $ cd ./config-repo
 $ echo "info.foo: bar" > application.properties
 $ git add -A .
@@ -133,7 +133,7 @@ Now add the new public key as a read-only deploy key to the GitHub configuration
 ### Convert Private Key to String
 Config Server will not accept the original formatting of the private key with multiple lines. Before proceeding, we must convert the private key to a string replacing all newline characters with `\n`.
 
-I have done this before in Notepad++ or using the sed utility, but your mileage may vary. Also, our team has a [PCF Dev Guide](https://github.ford.com/PCFDev-Reference/pcfdev-sample-config-repo) with a smooth bash script to do this with sed. Here is how I do it in Notepad++.
+I have done this before in Notepad++ or using the sed utility, but your mileage may vary. Also, our team has a [PCF Dev Guide](https://github.company.com/PCFDev-Reference/pcfdev-sample-config-repo) with a smooth bash script to do this with sed. Here is how I do it in Notepad++.
 
 Here is how the original file looks.
 `C:\users\jpotte46\.ssh\config-repo`
@@ -173,7 +173,7 @@ If you've decided to continue with this step, you will need to add the details o
 ```bash
 # Replace with your GitHub configuration repo address and private key.
 # Note that the properties are case sensitive!
-spring.cloud.config.server.git.uri=git@github.ford.com:JPOTTE46/config-repo.git
+spring.cloud.config.server.git.uri=git@github.com:jonathanpotter/config-repo.git
 spring.cloud.config.server.git.ignoreLocalSshSettings=true
 spring.cloud.config.server.git.privateKey=-----BEGIN RSA PRIVATE KEY-----\nMIIJKQIBA...
 ```
@@ -213,7 +213,7 @@ $ PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIJK...oncM=\n-----END RSA PRIV
 $ cf create-service p-config-server standard my-sample-config-server -c "$(cat <<EOF
 {
    "git": {
-       "uri": "git@github.ford.com:JPOTTE46/config-repo.git",
+       "uri": "git@github.com:jonathanpotter/config-repo.git",
        "privateKey": "$PRIVATE_KEY"
    }
 }
@@ -233,7 +233,7 @@ Tags:
 Plan: standard
 Description: Config Server for Spring Cloud Applications
 Documentation url: http://docs.pivotal.io/spring-cloud-services/
-Dashboard: https://spring-cloud-broker.apps-pcf02v2i.cf.ford.com/dashboard/p-config-server/e13e3852-575b-4b89-a86a-493c78d38142
+Dashboard: https://spring-cloud-broker.cf.company.com/dashboard/p-config-server/e13e3852-575b-4b89-a86a-493c78d38142
 
 Last Operation
 Status: create succeeded
@@ -246,7 +246,7 @@ If you see a message banner in green that "Config server is online", then the co
 
 Often teams will see a red error message. If so, go back through Part 2 and double-check each step. Mistake usually occurs during these steps:
 - Reformatting the private key into a string replacing the carriage returns and line feeds with a `\n` characters.
-- Specifying the wrong GitHub uri. Ford's GitHub installation only supports SSH (not HTTPS).
+- Specifying the wrong GitHub uri. Our GitHub instance only supports SSH (not HTTPS).
 - Perhaps your shell handles quotes during the `cf create-service` step. You may need some escape characters in the JSON during this step.
 
 ## Part 4: Writing a Config Client App
@@ -398,7 +398,7 @@ Dev teams need to pay attend to client dependencies between their app and config
 
 ## References
 Here are some additional completed examples and references.
-- [Setting Up GitHub Config Repo and PCF Config Server Instance](https://github.ford.com/PCFDev-Reference/pcfdev-sample-config-repo)
+- [Setting Up GitHub Config Repo and PCF Config Server Instance](https://github.com/PCFDev-Reference/pcfdev-sample-config-repo)
 - [Config Server Example](https://github.com/spring-cloud-samples/configserver)
 
 A list of things to clean up after running this tutorial.
